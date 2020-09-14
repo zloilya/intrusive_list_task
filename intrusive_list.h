@@ -44,33 +44,35 @@ namespace intrusive {
         template<bool is_const>
         struct list_iterator {
             friend class list;
+
         private:
             list_element<Tag> *iter;
+
             explicit list_iterator(list_element<Tag> *pointer) : iter(pointer) {}
+
         private:
             template<class TT>
             using add_constness = std::conditional_t<is_const, std::add_const_t<TT>, std::remove_const_t<TT>>;
             using underlying_iterator =
             std::conditional_t<is_const,
-                    const list_element<Tag>*,
-                    list_element<Tag>*>;
+                    const list_element<Tag> *,
+                    list_element<Tag> *>;
         public:
 
             using iterator_category = std::bidirectional_iterator_tag;
             using value_type = add_constness<T>;
             using difference_type = std::ptrdiff_t;
-            using pointer   = value_type *;
+            using pointer = value_type *;
             using reference = value_type &;
 
             list_iterator() = default;
 
-            template<bool Const=true>
-            list_iterator(const list_iterator<Const> &other) : iter(other.iter) {}
+            template<bool WasConst, class = std::enable_if_t<is_const || !WasConst>>
+            list_iterator(const list_iterator<WasConst> &other) : iter(other.iter) {}
 
+            reference operator*() const noexcept { return static_cast<reference>(*iter); }
 
-            reference operator* () const noexcept { return static_cast<reference>(*iter); }
-
-            pointer   operator->() const noexcept { return static_cast<pointer   >(iter); }
+            pointer operator->() const noexcept { return static_cast<pointer>(iter); }
 
             list_iterator &operator++() & noexcept {
                 iter = iter->next;
@@ -103,7 +105,7 @@ namespace intrusive {
             }
         };
 
-        using iterator       = list_iterator<false>;
+        using iterator = list_iterator<false>;
         using const_iterator = list_iterator<true>;
 
         static_assert(std::is_convertible_v<T &, list_element<Tag> &>,
@@ -115,23 +117,28 @@ namespace intrusive {
 
         list(list const &) = delete;
 
-        list(list &&other) noexcept { operator=(std::move(other)); }
+        list(list &&other) noexcept {
+            operator=(std::move(other));
+        }
 
         ~list() = default;
 
         list &operator=(list const &) = delete;
 
         list &operator=(list &&other) noexcept {
+            if (&other == this) {
+                return *this;
+            }
             clear();
             if (!other.empty()) {
                 pointer.link(other.pointer.prev, other.pointer.next);
+                other.pointer.prev = other.pointer.next = &other.pointer;
             }
-            other.clear();
             return *this;
         }
 
         void clear() noexcept {
-            pointer.prev = pointer.next = &pointer;
+            pointer.unlink();
         }
 
         /*
@@ -170,7 +177,7 @@ namespace intrusive {
             return static_cast<T const &>(*pointer.next);
         }
 
-        [[nodiscard]] bool empty() const noexcept {
+        bool empty() const noexcept {
             return pointer.prev == &pointer;
         }
 
@@ -195,9 +202,9 @@ namespace intrusive {
             return iterator(&elem);
         }
 
-        iterator erase(const_iterator pos) noexcept {
+        iterator erase(iterator pos) noexcept {
             (++pos).iter->prev->unlink();
-            return iterator(pos);
+            return pos;
         }
 
         void splice(const_iterator pos, list &, const_iterator first, const_iterator last) noexcept {

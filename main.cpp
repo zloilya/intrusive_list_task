@@ -5,7 +5,7 @@
 struct node : intrusive::list_element<>
 {
     explicit node(int value)
-        : value(value)
+            : value(value)
     {}
 
     int value;
@@ -843,7 +843,7 @@ TEST(intrusive_list_testing, iterator_deref_2c)
 struct multi_node : intrusive::list_element<struct tag_a>, intrusive::list_element<struct tag_b>
 {
     explicit multi_node(int value)
-        : value(value)
+            : value(value)
     {}
 
     int value;
@@ -860,6 +860,23 @@ TEST(intrusive_list_testing, multiple_tags)
 
     expect_eq(list_a, {1, 2, 3});
     expect_eq(list_b, {3, 2, 1});
+}
+
+TEST(intrusive_list_testing, iterator_conversion)
+{
+    static_assert(std::is_convertible_v<intrusive::list<node>::iterator, intrusive::list<node>::iterator>, "OK");
+    static_assert(std::is_convertible_v<intrusive::list<node>::iterator, intrusive::list<node>::const_iterator>, "OK");
+    static_assert(!std::is_convertible_v<intrusive::list<node>::const_iterator, intrusive::list<node>::iterator>, "not ok!");
+}
+
+TEST(intrusive_list_testing, simple_move)
+{
+    intrusive::list<node> lst;
+    node x1{1}, x2{2}, x3{3};
+    mass_push_back(lst, x1, x2, x3);
+    expect_eq(lst, {1, 2, 3});
+    lst = std::move(lst);
+    expect_eq(lst, {1, 2, 3});
 }
 
 int main(int argc, char** argv)
